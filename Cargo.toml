@@ -1,0 +1,14 @@
+[package]
+authors = ['Geoff Clements <ro2kz0@gmail.com>']
+description = "Rust library for playing music asynchronously"
+# documentation = ""
+edition = '2018'
+# homepage = ""
+license = "MIT"
+name = 'adlib'
+readme = "README.md"
+repository = "https://github.com/GeoffClements/adlib"
+version = '0.1.0'
+
+[dependencies]
+bytes = "1.0"
