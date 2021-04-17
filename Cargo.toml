@@ -17,3 +17,12 @@ futures-util = "0.3"
 tokio = {version = "1.5", features = ["fs"]}
 tokio-util = {version = "0.6", features = ["io"]}
 url = "2.2"
+
+[dev-dependencies]
+adlib = {path = ".", version = "*"}
+tokio = {version = "1.5", features = ["macros", "rt"]}
+url = "2.2"
+
+[[example]]
+name = "read_source"
+path = "examples/read_source.rs"
