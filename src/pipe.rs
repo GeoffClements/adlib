@@ -7,7 +7,12 @@ pub struct Pipe<P, IN, OUT> {
 }
 
 impl<P: Plug, IN, OUT> Pipe<P, IN, OUT> {
-    pub fn plug<'a>(&'a mut self, plug: P) -> &'a mut Self {
+    pub fn plug<'a>(&'a mut self, mut plug: P) -> &'a mut Self {
+        // plug.add_prev(if self.plugs.len() == 0 {
+        //     &self.source
+        // } else {
+        //     &self.plugs[self.plugs.len()]
+        // });
         self.plugs.push(plug);
         self
     }

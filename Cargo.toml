@@ -8,7 +8,9 @@ license = "MIT"
 name = 'adlib'
 readme = "README.md"
 repository = "https://github.com/GeoffClements/adlib"
-version = '0.1.0'
+version = '0.1.1'
 
 [dependencies]
+async-stream = "0.3"
 bytes = "1.0"
+futures-core = "0.3"
