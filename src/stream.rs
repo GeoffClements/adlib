@@ -4,17 +4,21 @@ use tokio::fs::File;
 use tokio_util::io::ReaderStream;
 use url::Url;
 
+// use crate::decode::Decoder;
+
 use std::{fmt, io};
 
+pub type AdlibStream = BoxStream<'static, io::Result<AdlibMessage>>;
+
 #[non_exhaustive]
-pub enum AdMessage {
+pub enum AdlibMessage {
     Data(Bytes),
 }
 
 pub struct Source;
 
 impl Source {
-    pub async fn from(from: Url) -> io::Result<BoxStream<'static, io::Result<AdMessage>>> {
+    pub async fn from(from: Url) -> io::Result<AdlibStream> {
         let strm = match from.scheme() {
             "file" => {
                 let file = File::open(from.path()).await?;
@@ -23,18 +27,22 @@ impl Source {
             _ => return Err(io::Error::from(io::ErrorKind::NotFound)),
         };
 
-        Ok(Box::pin(strm.map(|m| match m {
-            Ok(m) => Ok(AdMessage::Data(m)),
-            Err(e) => Err(e),
-        })))
+        Ok(strm
+            .map(|m| match m {
+                Ok(m) => Ok(AdlibMessage::Data(m)),
+                Err(e) => Err(e),
+            })
+            .boxed())
     }
+
+    // pub async fn decoder() -> Option<dyn Decoder> {}
 }
 
-impl fmt::Debug for AdMessage {
+impl fmt::Debug for AdlibMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AdMessage::Data(d) => f
-                .debug_struct("AdMessage")
+            AdlibMessage::Data(d) => f
+                .debug_struct("AdlibMessage")
                 .field("Data. Length: ", &d.len())
                 .finish(),
         }

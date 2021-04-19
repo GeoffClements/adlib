@@ -12,8 +12,10 @@ version = '0.1.1'
 
 [dependencies]
 bytes = "1.0"
+claxon = "0.4"
+cpal = "0.13"
 futures-core = "0.3"
-futures-util = "0.3"
+futures-util = {version = "0.3", features = ["sink"]}
 tokio = {version = "1.5", features = ["fs"]}
 tokio-util = {version = "0.6", features = ["io"]}
 url = "2.2"
