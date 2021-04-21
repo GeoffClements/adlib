@@ -1,38 +1,42 @@
-// use claxon::FlacReader;
-// use futures_util::{future::ready, stream::StreamExt};
-// use tokio_util::io::StreamReader;
+use crate::stream::{AdlibMessage, AdlibStreamItem};
+use bytes::BytesMut;
+use futures_util::{Stream, StreamExt};
+use tokio_util::{
+    codec::{Decoder, FramedRead},
+    io::StreamReader,
+};
 
-// use crate::{AdlibMessage, AdlibStream};
+use std::io;
 
-// use std::io::Read;
-
-pub trait Decoder {}
-
-pub struct MaybeDecoder;
-
-impl MaybeDecoder {
-    // pub async fn new(s: AdlibStream) -> Option<Box<dyn Decoder>> {
-    //     let s = s.filter_map(|b| {
-    //         ready(match b {
-    //             Ok(AdlibMessage::Data(d)) => Some(Ok(d)),
-    //             _ => None,
-    //         })
-    //     });
-
-    //     let sr = StreamReader::new(s);
-
-    //     FlacDecoder
-    // }
+pub struct Detecter<St> {
+    stream: St,
 }
 
-// pub struct FlacDecoder<R: Read> {
-//     inner: FlacReader<R>,
-// }
+impl<St> Detecter<St>
+where
+    St: Stream<Item = io::Result<AdlibMessage>>,
+{
+    pub fn new(stream: St) -> Self {
+        let stream = stream.filter_map(|m| async {
+            if let Ok(AdlibMessage::Data(d)) = m {
+                Some(Ok(d))
+            } else {
+                None
+            }
+        });
+        let sr = StreamReader::new(stream);
+        let frames = FramedRead::new(sr, DetectCodec);
+        Self { frames }
+    }
+}
 
-// impl<R: Read> FlacDecoder<R> {
-//     pub fn new(inner: R) -> Option<Self> {
+struct DetectCodec;
 
-//     }
-// }
+impl Decoder for DetectCodec {
+    type Item = AdlibStreamItem;
+    type Error = io::Error;
 
-// impl<R: Read> Decoder for FlacDecoder<R> {}
+    fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
+        Ok(Some(Box::pin(AdlibMessage::EndOfStream)))
+    }
+}
