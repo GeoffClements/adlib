@@ -11,7 +11,7 @@ async fn main() {
     path.push("examples/music.flac");
     if let Ok(url) = Url::from_file_path(path) {
         let mut src = Source::from(url).await.unwrap();
-        while let Some(Ok(m)) = src.next().await {
+        while let Some(m) = src.next().await {
             println!("{:?}", m);
         }
     }

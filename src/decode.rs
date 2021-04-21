@@ -1,30 +1,33 @@
-use claxon::FlacReader;
-use futures_util::{future::ready, stream::StreamExt};
+// use claxon::FlacReader;
+// use futures_util::{future::ready, stream::StreamExt};
+// use tokio_util::io::StreamReader;
 
-use crate::{AdlibMessage, AdlibStream};
+// use crate::{AdlibMessage, AdlibStream};
 
-use std::io::Read;
+// use std::io::Read;
 
 pub trait Decoder {}
 
 pub struct MaybeDecoder;
 
 impl MaybeDecoder {
-    pub async fn new(s: AdlibStream) -> Option<Box<dyn Decoder>> {
-        let s = s.filter_map(|b| {
-            ready(match b {
-                Ok(AdlibMessage::Data(d)) => Some(d),
-                _ => None,
-            })
-        });
+    // pub async fn new(s: AdlibStream) -> Option<Box<dyn Decoder>> {
+    //     let s = s.filter_map(|b| {
+    //         ready(match b {
+    //             Ok(AdlibMessage::Data(d)) => Some(Ok(d)),
+    //             _ => None,
+    //         })
+    //     });
 
-        FlacDecoder
-    }
+    //     let sr = StreamReader::new(s);
+
+    //     FlacDecoder
+    // }
 }
 
-pub struct FlacDecoder<R: Read> {
-    inner: FlacReader<R>,
-}
+// pub struct FlacDecoder<R: Read> {
+//     inner: FlacReader<R>,
+// }
 
 // impl<R: Read> FlacDecoder<R> {
 //     pub fn new(inner: R) -> Option<Self> {
@@ -32,4 +35,4 @@ pub struct FlacDecoder<R: Read> {
 //     }
 // }
 
-impl<R: Read> Decoder for FlacDecoder<R> {}
+// impl<R: Read> Decoder for FlacDecoder<R> {}
