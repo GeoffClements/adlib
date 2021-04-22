@@ -1,62 +1,87 @@
-use bytes::Bytes;
-use futures_util::stream::{once, BoxStream, Stream, StreamExt};
-use tokio::fs::File;
-use tokio_util::io::ReaderStream;
-use url::Url;
+use pin_project::pin_project;
+use tokio::{
+    fs::File,
+    io::{AsyncRead, ReadBuf},
+    net::TcpStream,
+};
+use url::{Host, Url};
 
-use crate::decode::Detecter;
+use std::{
+    self,
+    convert::{From, TryFrom},
+    io::{self, ErrorKind},
+    net::IpAddr,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
-use std::{fmt, io};
+#[pin_project(project = SourceTypesProj)]
+enum SourceTypes {
+    File(#[pin] File),
+    Tcp(#[pin] TcpStream),
+}
 
-pub type AdlibStreamItem = BoxStream<'static, io::Result<AdlibMessage>>;
+#[pin_project]
+pub struct Source {
+    #[pin]
+    inner: SourceTypes,
+}
 
-impl<T> AdlibStream for T where T: Stream {}
-
-pub trait AdlibStream: Stream {
-    fn detector(self) -> Detecter<Self>
-    where
-        Self: Sized,
-    {
-        Detecter::new(self)
+impl From<std::fs::File> for Source {
+    fn from(file: std::fs::File) -> Self {
+        Self {
+            inner: SourceTypes::File(File::from_std(file)),
+        }
     }
 }
 
-#[non_exhaustive]
-pub enum AdlibMessage {
-    Data(Bytes),
-    EndOfStream,
+impl TryFrom<std::net::TcpStream> for Source {
+    type Error = io::Error;
+
+    fn try_from(tcp: std::net::TcpStream) -> Result<Self, Self::Error> {
+        Ok(Self {
+            inner: SourceTypes::Tcp(TcpStream::from_std(tcp)?),
+        })
+    }
 }
 
-pub struct Source;
+impl TryFrom<Url> for Source {
+    type Error = io::Error;
 
-impl Source {
-    pub async fn from(from: Url) -> io::Result<AdlibStreamItem> {
-        let strm = match from.scheme() {
+    fn try_from(url: Url) -> Result<Self, Self::Error> {
+        match url.scheme() {
             "file" => {
-                let file = File::open(from.path()).await?;
-                ReaderStream::new(file)
+                let file = std::fs::File::open(url.path())?;
+                Ok(Source::from(file))
             }
-            _ => return Err(io::Error::from(io::ErrorKind::NotFound)),
-        };
+            "http" => {
+                // TODO: handle name resolution
+                // unwrap is safe as scheme is http
+                let port = url.port_or_known_default().unwrap();
+                let addr = match url.host() {
+                    Some(Host::Ipv4(a)) => IpAddr::V4(a),
+                    Some(Host::Ipv6(a)) => IpAddr::V6(a),
+                    _ => return Err(io::Error::from(ErrorKind::InvalidInput)),
+                };
+                let tcp = std::net::TcpStream::connect((addr, port))?;
+                Ok(Source::try_from(tcp)?)
+            }
 
-        let eos = once(async { Ok(AdlibMessage::EndOfStream) });
-        Ok(strm
-            .map(|m| match m {
-                Ok(m) => Ok(AdlibMessage::Data(m)),
-                Err(e) => Err(e),
-            })
-            .chain(eos)
-            .boxed())
+            _ => Err(io::Error::from(ErrorKind::NotFound)),
+        }
     }
-
-    // pub async fn decoder() -> Option<dyn Decoder> {}
 }
 
-impl fmt::Debug for AdlibMessage {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AdlibMessage::Data(d) => f.debug_struct("Data").field("Bytes", &d.len()).finish(),
-            AdlibMessage::EndOfStream => f.debug_struct("End Of Stream").finish(),
+impl AsyncRead for Source {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        let this = self.project();
+        match this.inner.project() {
+            SourceTypesProj::File(f) => f.poll_read(cx, buf),
+            SourceTypesProj::Tcp(s) => s.poll_read(cx, buf),
         }
     }
 }
