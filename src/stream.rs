@@ -1,7 +1,7 @@
 use pin_project::pin_project;
 use tokio::{
     fs::File,
-    io::{AsyncRead, ReadBuf},
+    io::{AsyncRead, AsyncWriteExt, ReadBuf},
     net::TcpStream,
 };
 use url::{Host, Url};
@@ -68,6 +68,20 @@ impl TryFrom<Url> for Source {
             }
 
             _ => Err(io::Error::from(ErrorKind::NotFound)),
+        }
+    }
+}
+
+impl Source {
+    // Used to send a string to a server, typically a http GET request
+    pub async fn get(mut self, get: &str) -> io::Result<Self> {
+        match self.inner {
+            SourceTypes::Tcp(ref mut tcp) => {
+                tcp.write_all(get.as_bytes()).await?;
+                tcp.write_all(b"\r\n\r\n").await?;
+                Ok(self)
+            }
+            _ => Err(io::Error::from(ErrorKind::InvalidInput)),
         }
     }
 }
