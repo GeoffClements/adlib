@@ -4,6 +4,8 @@ use bytes::BytesMut;
 use tokio_util::codec::Decoder;
 // use claxon;
 
+use flac::{start_of_flac_stream, read_metadata_block_with_header};
+
 use std::io;
 
 // const OGGMAGIC: &[u8] = b"OggS";
@@ -16,7 +18,7 @@ pub enum DataFrame {
 }
 
 pub(crate) enum DecodeHints {
-    Flac,
+    FlacMetaBlock
 }
 
 #[derive(Default)]
@@ -26,8 +28,9 @@ pub struct DataFrameDecoder {
 
 pub(crate) enum DecodeResult {
     MoreData,
-    // Flac(FlacHeader),
     Unrecognised,
+    FlacStream,
+    FlacMetaBlock,
 }
 
 impl Decoder for DataFrameDecoder {
@@ -43,7 +46,20 @@ impl Decoder for DataFrameDecoder {
 
         // If no hint check if we are at the start of a flac stream
         if self.hint.is_none() {
-
+            match start_of_flac_stream(src) {
+                DecodeResult::MoreData => return Ok(None),
+                DecodeResult::FlacStream => {
+                    match read_metadata_block_with_header(src) {
+                        DecodeResult::MoreData => return Ok(None),
+                        DecodeResult::FlacMetaBlock => {
+                            self.hint = Some(DecodeHints::FlacMetaBlock);
+                            return Ok(Some(DataFrame::Flac))
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
         }
 
         // If we have magic set hint then look for and extract tags - return
@@ -58,3 +74,4 @@ impl Decoder for DataFrameDecoder {
         Ok(None)
     }
 }
+
