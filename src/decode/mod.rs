@@ -4,9 +4,11 @@ use bytes::BytesMut;
 use tokio_util::codec::Decoder;
 // use claxon;
 
-use flac::{start_of_flac_stream, read_metadata_block_with_header};
+use crate::stream::StreamInfo;
 
-use std::io;
+use flac::{read_metadata_block_with_header, start_of_flac_stream};
+
+use std::io::{self, ErrorKind};
 
 // const OGGMAGIC: &[u8] = b"OggS";
 // const MAGICS: &[&[u8]] = &[FLACMAGIC, OGGMAGIC];
@@ -15,22 +17,24 @@ const MAXBUF: usize = 128 * 1024;
 
 pub enum DataFrame {
     Flac(BytesMut),
+    StreamInfo(StreamInfo),
 }
 
-pub(crate) enum DecodeHints {
-    FlacMetaBlock
+pub(crate) enum DecodeStates {
+    FlacMetaBlock,
+    FlacFrame,
 }
 
 #[derive(Default)]
 pub struct DataFrameDecoder {
-    hint: Option<DecodeHints>,
+    state: Option<DecodeStates>,
 }
 
 pub(crate) enum DecodeResult {
     MoreData,
     Unrecognised,
     FlacStream,
-    FlacMetaBlock,
+    StreamInfo(StreamInfo),
 }
 
 impl Decoder for DataFrameDecoder {
@@ -41,24 +45,32 @@ impl Decoder for DataFrameDecoder {
         // If buffer reaches max size discard it and start again
         if src.len() > MAXBUF {
             let _ = src.split();
+            self.state = None;
             return Ok(None);
         }
 
-        // If no hint check if we are at the start of a flac stream
-        if self.hint.is_none() {
-            match start_of_flac_stream(src) {
-                DecodeResult::MoreData => return Ok(None),
-                DecodeResult::FlacStream => {
-                    match read_metadata_block_with_header(src) {
-                        DecodeResult::MoreData => return Ok(None),
-                        DecodeResult::FlacMetaBlock => {
-                            self.hint = Some(DecodeHints::FlacMetaBlock);
-                            return Ok(Some(DataFrame::Flac))
-                        }
-                        _ => {}
+        // A simple FSM
+        loop {
+            match self.state {
+                None => match start_of_flac_stream(src) {
+                    DecodeResult::MoreData => return Ok(None),
+                    DecodeResult::FlacStream => self.state = Some(DecodeStates::FlacMetaBlock),
+                    DecodeResult::Unrecognised => continue,
+                    _ => return Err(io::Error::from(ErrorKind::InvalidData)),
+                },
+
+                Some(DecodeStates::FlacMetaBlock) => match read_metadata_block_with_header(src) {
+                    (_, Ok(DecodeResult::MoreData)) => return Ok(None),
+                    (last, Ok(DecodeResult::StreamInfo(s))) => {
+                        if last {
+                            self.state = Some(DecodeStates::FlacFrame)
+                        };
+                        return Ok(Some(DataFrame::StreamInfo(s)));
                     }
-                }
-                _ => {}
+                    _ => return Err(io::Error::from(ErrorKind::InvalidData)),
+                },
+
+                Some(DecodeStates::FlacFrame) => {}
             }
         }
 
@@ -71,7 +83,6 @@ impl Decoder for DataFrameDecoder {
         // If no hint look for any frame and extract - return
         // If we find no frame get more data - return
 
-        Ok(None)
+        // Ok(None)
     }
 }
-

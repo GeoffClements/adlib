@@ -15,6 +15,12 @@ use std::{
     task::{Context, Poll},
 };
 
+pub struct StreamInfo {
+    pub sample_rate: u32,
+    pub channels: u32,
+    pub bits_per_sample: u32,
+}
+
 #[pin_project(project = SourceTypesProj)]
 enum SourceTypes {
     File(#[pin] File),
