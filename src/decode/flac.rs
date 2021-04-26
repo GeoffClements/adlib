@@ -27,11 +27,14 @@ pub(crate) fn read_metadata_block_with_header(
     if (src.len() as u32) < blocklength + 4 {
         return (false, Ok(DecodeResult::MoreData));
     }
-    let src = src.split_to((blocklength + 4) as usize);
+
+    let mut src = src.split_to((blocklength + 4) as usize);
     let meta_header = src[0];
     let block_type = meta_header & 0b0111_1111;
     let is_last_meta = (meta_header >> 7) == 1;
+    let _ = src.split_to(4);
     let mut bufreader = BufferedReader::new(src.as_ref());
+
     match read_metadata_block(&mut bufreader, block_type, blocklength) {
         Ok(MetadataBlock::StreamInfo(metadata::StreamInfo {
             sample_rate,

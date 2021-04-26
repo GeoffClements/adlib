@@ -15,11 +15,13 @@ use std::io::{self, ErrorKind};
 
 const MAXBUF: usize = 128 * 1024;
 
+#[derive(Debug)]
 pub enum DataFrame {
     Flac(BytesMut),
     StreamInfo(StreamInfo),
 }
 
+#[derive(Debug)]
 pub(crate) enum DecodeStates {
     FlacMetaBlock,
     FlacFrame,
@@ -49,14 +51,13 @@ impl Decoder for DataFrameDecoder {
             return Ok(None);
         }
 
-        // A simple FSM
         loop {
             match self.state {
                 None => match start_of_flac_stream(src) {
                     DecodeResult::MoreData => return Ok(None),
                     DecodeResult::FlacStream => self.state = Some(DecodeStates::FlacMetaBlock),
                     DecodeResult::Unrecognised => continue,
-                    _ => return Err(io::Error::from(ErrorKind::InvalidData)),
+                    _ => return Err(io::Error::from(ErrorKind::NotFound)),
                 },
 
                 Some(DecodeStates::FlacMetaBlock) => match read_metadata_block_with_header(src) {
@@ -67,10 +68,18 @@ impl Decoder for DataFrameDecoder {
                         };
                         return Ok(Some(DataFrame::StreamInfo(s)));
                     }
+                    (last, Ok(DecodeResult::Unrecognised)) => {
+                        if last {
+                            self.state = Some(DecodeStates::FlacFrame)
+                        };
+                        continue;
+                    }
                     _ => return Err(io::Error::from(ErrorKind::InvalidData)),
                 },
 
-                Some(DecodeStates::FlacFrame) => {}
+                Some(DecodeStates::FlacFrame) => {
+                    return Err(io::Error::from(ErrorKind::InvalidData))
+                }
             }
         }
 

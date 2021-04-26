@@ -4,7 +4,10 @@ use tokio::{
     io::{AsyncRead, AsyncWriteExt, ReadBuf},
     net::TcpStream,
 };
+use tokio_util::codec::FramedRead;
 use url::{Host, Url};
+
+use crate::decode::DataFrameDecoder;
 
 use std::{
     self,
@@ -15,6 +18,7 @@ use std::{
     task::{Context, Poll},
 };
 
+#[derive(Debug)]
 pub struct StreamInfo {
     pub sample_rate: u32,
     pub channels: u32,
@@ -103,5 +107,13 @@ impl AsyncRead for Source {
             SourceTypesProj::File(f) => f.poll_read(cx, buf),
             SourceTypesProj::Tcp(s) => s.poll_read(cx, buf),
         }
+    }
+}
+
+pub struct Framer;
+
+impl Framer {
+    pub fn new<R: AsyncRead>(inner: R) -> FramedRead<R, DataFrameDecoder> {
+        FramedRead::new(inner, DataFrameDecoder::default())
     }
 }
