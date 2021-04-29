@@ -64,32 +64,33 @@ impl Decoder for DataFrameDecoder {
                     _ => return Err(io::Error::from(ErrorKind::NotFound)),
                 },
 
-                Some(DecodeStates::FlacHeaders) => match read_metadata_block_with_header(src) {
-                    (_, Ok(DecodeResult::MoreData)) => return Ok(None),
-                    
-                    (last, Ok(DecodeResult::StreamInfo(s))) => {
+                Some(DecodeStates::FlacHeaders) => {
+                    if let (last, Ok(result)) = read_metadata_block_with_header(src) {
                         if last {
                             self.state = Some(DecodeStates::FlacFrames)
                         };
-                        return Ok(Some(DataFrame::StreamInfo(s)));
-                    }
 
-                    (last, Ok(DecodeResult::Tags(v))) => {
-                        if last {
-                            self.state = Some(DecodeStates::FlacFrames)
-                        };
-                        return Ok(Some(DataFrame::Tags(v)));
-                    }
+                        match result {
+                            DecodeResult::MoreData => return Ok(None),
 
-                    (last, Ok(DecodeResult::Unrecognised)) => {
-                        if last {
-                            self.state = Some(DecodeStates::FlacFrames)
-                        };
-                        continue;
-                    }
+                            DecodeResult::StreamInfo(s) => {
+                                return Ok(Some(DataFrame::StreamInfo(s)));
+                            }
 
-                    _ => return Err(io::Error::from(ErrorKind::InvalidData)),
-                },
+                            DecodeResult::Tags(v) => {
+                                return Ok(Some(DataFrame::Tags(v)));
+                            }
+
+                            DecodeResult::Unrecognised => {
+                                continue;
+                            }
+
+                            _ => unreachable!(),
+                        }
+                    } else {
+                        return Err(io::Error::from(ErrorKind::InvalidData));
+                    }
+                }
 
                 Some(DecodeStates::FlacFrames) => {
                     todo!();
