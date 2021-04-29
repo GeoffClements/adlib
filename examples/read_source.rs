@@ -1,4 +1,4 @@
-use adlib::{Framer, Source};
+use adlib::Source;
 use futures_util::stream::StreamExt;
 use tokio;
 // use tokio_util::io::ReaderStream;
@@ -11,8 +11,7 @@ async fn main() {
     let mut path = current_dir().unwrap();
     path.push("examples/music.flac");
     if let Ok(url) = Url::from_file_path(path) {
-        let src = Source::try_from(url).unwrap();
-        let mut src = Framer::new(src);
+        let mut src = Source::try_from(url).unwrap().transport();
         while let Some(Ok(m)) = src.next().await {
             println!("{:?}", m);
         }

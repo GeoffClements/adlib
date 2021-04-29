@@ -2,4 +2,4 @@ pub mod decode;
 pub mod sink;
 pub mod stream;
 
-pub use stream::{Framer, Source};
+pub use stream::Source;

@@ -94,6 +94,10 @@ impl Source {
             _ => Err(io::Error::from(ErrorKind::InvalidInput)),
         }
     }
+
+    pub fn transport(self) -> FramedRead<Self, DataFrameDecoder> {
+        TransportStream::new(self)
+    }
 }
 
 impl AsyncRead for Source {
@@ -110,9 +114,9 @@ impl AsyncRead for Source {
     }
 }
 
-pub struct Framer;
+pub struct TransportStream;
 
-impl Framer {
+impl TransportStream {
     pub fn new<R: AsyncRead>(inner: R) -> FramedRead<R, DataFrameDecoder> {
         FramedRead::new(inner, DataFrameDecoder::default())
     }

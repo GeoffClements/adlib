@@ -49,7 +49,25 @@ pub(crate) fn read_metadata_block_with_header(
                 bits_per_sample,
             })),
         ),
+
+        Ok(MetadataBlock::VorbisComment(c)) => (
+            is_last_meta,
+            Ok(DecodeResult::Tags(
+                c.comments
+                    .iter()
+                    .map(|(s, _)| {
+                        if let Some(pos) = s.find("=") {
+                            (s[..pos].into(), s[pos + 1..].into())
+                        } else {
+                            (String::new(), s.into())
+                        }
+                    })
+                    .collect(),
+            )),
+        ),
+
         Ok(_) => (is_last_meta, Ok(DecodeResult::Unrecognised)),
+
         Err(e) => (false, Err(e)),
     }
 }

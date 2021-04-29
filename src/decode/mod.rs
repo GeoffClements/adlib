@@ -19,12 +19,15 @@ const MAXBUF: usize = 128 * 1024;
 pub enum DataFrame {
     Flac(BytesMut),
     StreamInfo(StreamInfo),
+    Tags(Vec<(String, String)>),
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub(crate) enum DecodeStates {
-    FlacMetaBlock,
-    FlacFrame,
+    FlacHeaders,
+    FlacFrames,
+    AnySync,
 }
 
 #[derive(Default)]
@@ -37,6 +40,7 @@ pub(crate) enum DecodeResult {
     Unrecognised,
     FlacStream,
     StreamInfo(StreamInfo),
+    Tags(Vec<(String, String)>),
 }
 
 impl Decoder for DataFrameDecoder {
@@ -55,43 +59,46 @@ impl Decoder for DataFrameDecoder {
             match self.state {
                 None => match start_of_flac_stream(src) {
                     DecodeResult::MoreData => return Ok(None),
-                    DecodeResult::FlacStream => self.state = Some(DecodeStates::FlacMetaBlock),
-                    DecodeResult::Unrecognised => continue,
+                    DecodeResult::FlacStream => self.state = Some(DecodeStates::FlacHeaders),
+                    DecodeResult::Unrecognised => self.state = Some(DecodeStates::AnySync),
                     _ => return Err(io::Error::from(ErrorKind::NotFound)),
                 },
 
-                Some(DecodeStates::FlacMetaBlock) => match read_metadata_block_with_header(src) {
+                Some(DecodeStates::FlacHeaders) => match read_metadata_block_with_header(src) {
                     (_, Ok(DecodeResult::MoreData)) => return Ok(None),
+                    
                     (last, Ok(DecodeResult::StreamInfo(s))) => {
                         if last {
-                            self.state = Some(DecodeStates::FlacFrame)
+                            self.state = Some(DecodeStates::FlacFrames)
                         };
                         return Ok(Some(DataFrame::StreamInfo(s)));
                     }
+
+                    (last, Ok(DecodeResult::Tags(v))) => {
+                        if last {
+                            self.state = Some(DecodeStates::FlacFrames)
+                        };
+                        return Ok(Some(DataFrame::Tags(v)));
+                    }
+
                     (last, Ok(DecodeResult::Unrecognised)) => {
                         if last {
-                            self.state = Some(DecodeStates::FlacFrame)
+                            self.state = Some(DecodeStates::FlacFrames)
                         };
                         continue;
                     }
+
                     _ => return Err(io::Error::from(ErrorKind::InvalidData)),
                 },
 
-                Some(DecodeStates::FlacFrame) => {
-                    return Err(io::Error::from(ErrorKind::InvalidData))
+                Some(DecodeStates::FlacFrames) => {
+                    todo!();
+                }
+
+                Some(DecodeStates::AnySync) => {
+                    todo!();
                 }
             }
         }
-
-        // If we have magic set hint then look for and extract tags - return
-        // self.hint = magic;
-
-        // if we have hint look for and extract frame - return
-        // If frame not found get more data - return
-
-        // If no hint look for any frame and extract - return
-        // If we find no frame get more data - return
-
-        // Ok(None)
     }
 }
